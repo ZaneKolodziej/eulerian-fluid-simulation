@@ -1,11 +1,15 @@
+#include <vector>
 #include "raylib.h"
+#include "fluidGrid.hpp"
 
 int main() {
     // 1. Initialize the window size and title
-    const int screenWidth = 800;
-    const int screenHeight = 600;
-    InitWindow(screenWidth, screenHeight, "Eulerian Fluid Simulation - Phase 1");
+    const int screenWidth = 1280;
+    const int screenHeight = 720;
+    InitWindow(screenWidth, screenHeight, "Fluid Sim");
 
+    fluidGrid physicsSim(32, 18);
+    
     // 2. Target 60 frames per second
     SetTargetFPS(60);
 
@@ -17,6 +21,8 @@ int main() {
         // 4. Drawing Layer
         BeginDrawing();
         ClearBackground(BLACK); // Clear the screen to black every frame
+
+        physicsSim.draw(screenWidth, screenHeight); 
 
         // Draw a simple circle at the mouse position to test interactivity
         Vector2 mousePos = GetMousePosition();
