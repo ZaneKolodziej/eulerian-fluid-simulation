@@ -1,39 +1,54 @@
-#include <vector>
 #include "raylib.h"
+#include "fluidSolver.hpp"
 #include "fluidGrid.hpp"
 
-int main() {
-    // 1. Initialize the window size and title
+//------------------------------------------------------------------------------------
+// Program main entry point
+//------------------------------------------------------------------------------------
+int main(void)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
     const int screenWidth = 1280;
     const int screenHeight = 720;
-    InitWindow(screenWidth, screenHeight, "Fluid Sim");
 
-    fluidGrid physicsSim(32, 18);
-    
-    // 2. Target 60 frames per second
-    SetTargetFPS(60);
+    // Initialize the FluidGrid (64x64)
+    FluidState state(64, 64);
 
-    // 3. The Main Game Loop (runs continuously until you close the window)
-    while (!WindowShouldClose()) {
-        
-        // --- UPDATE LOGIC WILL GO HERE ---
+    InitWindow(screenWidth, screenHeight, "Eulerian Fluid Simulation");
 
-        // 4. Drawing Layer
+    SetTargetFPS(60);               // Set to run at 60 frames-per-second
+    //--------------------------------------------------------------------------------------
+
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        // GetFrameTime() gives the exact time passed since the last frame (~0.016s at 60 FPS)
+        float dt = GetFrameTime();
+
+        //----------------------------------------------------------------------------------
+        // TODO: Add mouse forces / user input here before updating the physics
+        //----------------------------------------------------------------------------------
+        handleGridInput(state, screenWidth, screenHeight);
+        // TODO: Call the master step function here (e.g., state.step(dt);)
+        state.step(dt);
+        // Draw
+        //----------------------------------------------------------------------------------
         BeginDrawing();
-        ClearBackground(BLACK); // Clear the screen to black every frame
 
-        physicsSim.draw(screenWidth, screenHeight); 
-
-        // Draw a simple circle at the mouse position to test interactivity
-        Vector2 mousePos = GetMousePosition();
-        DrawCircleV(mousePos, 20, BLUE);
-
-        DrawText("Raylib is working!", 10, 10, 20, RAYWHITE);
+            ClearBackground(BLACK);
+            
+            // Render the fluid grid scaled to the screen size
+            drawFluid(state, screenWidth, screenHeight);
 
         EndDrawing();
-    }
+        //----------------------------------------------------------------------------------
+    } // <-- This closes the while loop
 
-    // 5. Clean up and close OpenGL context
-    CloseWindow();
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    CloseWindow();        // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
     return 0;
-}
+} // <-- This closes the main function
