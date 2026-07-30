@@ -3,7 +3,7 @@
 
 A real-time, interactive 2D fluid dynamics simulation built from scratch in C++ using the **Raylib** graphics library. This project implements an Eulerian (grid-based) approach to simulate fluid flow, density propagation, and velocity fields.
 
-![Fluid Simulation Demo](assets/Fluid_Sim_v1_(128x128).gif)
+![Fluid Simulation Demo](assets/demo.gif)
 
 ---
 
