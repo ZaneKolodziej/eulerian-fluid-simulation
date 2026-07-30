@@ -73,17 +73,17 @@ void handleGridInput(FluidState& state, int screenWidth, int screenHeight) {
                         state.density[index] = 1.0f;
                     }
 
-                    // 2. Add smooth force to velocity faces
+                    // 2. Add smooth force to velocity faces symmetrically
                     float cellForceX = baseForceX * falloff;
                     float cellForceY = baseForceY * falloff;
 
-                    // Left face & right face
-                    state.hv[index] += cellForceX;
-                    state.hv[state.getIndex(i + 1, j)] += cellForceX;
+                    // Distribute horizontal force evenly across left and right faces of cell (i, j)
+                    state.hv[state.getIndex(i, j)]     += cellForceX * 0.5f;
+                    state.hv[state.getIndex(i + 1, j)] += cellForceX * 0.5f;
 
-                    // Top face & bottom face
-                    state.vv[index] += cellForceY;
-                    state.vv[state.getIndex(i, j + 1)] += cellForceY;
+                    // Distribute vertical force evenly across top and bottom faces of cell (i, j)
+                    state.vv[state.getIndex(i, j)]     += cellForceY * 0.5f;
+                    state.vv[state.getIndex(i, j + 1)] += cellForceY * 0.5f;
                 }
             }
         }
