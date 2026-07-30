@@ -13,7 +13,7 @@ int main(void)
     const int screenHeight = 720;
 
     // Initialize the FluidGrid (64x64)
-    FluidState state(64, 64);
+    FluidState state(128, 128);
 
     InitWindow(screenWidth, screenHeight, "Eulerian Fluid Simulation");
 
