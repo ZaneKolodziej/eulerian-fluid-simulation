@@ -1,4 +1,17 @@
-*.exe
-*.out
-.vscode/
-build/
+# Build directories and executables
+/build/
+/bin/
+/*.exe
+/*.out
+/*.o
+/*.obj
+
+# IDE & Editor files
+/.vscode/
+/.idea/
+*.sln
+*.vcxproj*
+
+# OS clutter
+.DS_Store
+Thumbs.db
