@@ -1,7 +1,7 @@
 #pragma once
 #include <algorithm> // For std::clamp
 #include <vector>
-
+#include <cmath>
 
 struct FluidState
 {
@@ -20,6 +20,8 @@ struct FluidState
    std::vector<float> densityOld;
    //Pressure
    std::vector<float> pressure;
+   //divergence
+   std::vector<float> divergence;
 
    //indexing functions 
    //takes a set of 2d coordinates (i, j) and converts it to their 1d array equivolent
@@ -38,6 +40,7 @@ struct FluidState
     density.resize(totalSize, 0.0f);
     densityOld.resize(totalSize, 0.0f);
     pressure.resize(totalSize, 0.0f);
+    divergence.resize(totalSize, 0.0f);
    };
 
    //Bilinear Interpolater 
@@ -133,12 +136,78 @@ struct FluidState
       
    };
 
+   void project (){
+      for (int j = 1; j < height - 1; ++j) {
+         for (int i = 1; i < width - 1; ++i) {
+            //Calculate the divergence in each cell
+            divergence[getIndex(i, j)] = (hv[getIndex(i + 1, j)] - hv[getIndex(i, j)]) + (vv[getIndex(i, j + 1)] - vv[getIndex(i, j)]);
+         }
+      }
+      //Over-Relaxtion factor calculation
+      float omega = 2.0f / (1.0f + std::sinf(3.14159265f / static_cast<float>(allocatedWidth)));
+      //Red-Black Gauss-Siedel Successive Over Relaxtion time! (Rolls off the tongue doesn't it)
+      for (int iter = 0; iter < 20; ++iter){
+      //Red Cell loop
+         for (int j = 1; j < height - 1; ++j) {
+            for (int i = 1; i < width - 1; ++i) {
+               if ((i + j) % 2 == 0) { //Red Cell check
+                  //Calculate Ideal Pressure
+                  float p_ideal = 0.25f * (
+                     pressure[getIndex(i+1, j)] +
+                     pressure[getIndex(i-1, j)] +
+                     pressure[getIndex(i, j+1)] +
+                     pressure[getIndex(i, j-1)] -
+                     divergence[getIndex(i,j)]
+                  );
+                  //Apply over-relaxation
+                  pressure[getIndex(i,j)] += omega * (p_ideal - pressure[getIndex(i,j)]);
+               }
+            }
+         }
+
+         setBoundary(0, pressure);
+
+      //Black Cell loop
+         for (int j = 1; j < height - 1; ++j) {
+            for (int i = 1; i < width - 1; ++i) {
+               if ((i + j) % 2 == 1) { //Black Cell check
+                  //Calculate Ideal Pressure
+                  float p_ideal = 0.25f * (
+                     pressure[getIndex(i+1, j)] +
+                     pressure[getIndex(i-1, j)] +
+                     pressure[getIndex(i, j+1)] +
+                     pressure[getIndex(i, j-1)] -
+                     divergence[getIndex(i,j)]
+                  );
+                  //Apply over-relaxation
+                  pressure[getIndex(i,j)] += omega * (p_ideal - pressure[getIndex(i,j)]);
+               }
+            }
+          }
+          setBoundary(0, pressure);
+      }
+      // Subtract pressure gradient from velocities
+      for (int j = 1; j < height - 1; ++j) {
+         for (int i = 1; i < width - 1; ++i) {
+            hv[getIndex(i, j)] -= (pressure[getIndex(i, j)] - pressure[getIndex(i - 1, j)]);
+            vv[getIndex(i, j)] -= (pressure[getIndex(i, j)] - pressure[getIndex(i, j - 1)]);
+         }
+      }
+
+      // Enforce boundary conditions on corrected velocities
+      setBoundary(1, hv);
+      setBoundary(2, vv);
+   };
+
 
    void step(float dt) {
     // 1. Double Buffering: Snapshot the current state into the old arrays
     densityOld = density;
     hvOld = hv;
     vvOld = vv;
+
+    //Pre-Projection (ensures input forces are pressure-corrected)
+    project();
 
     // 2. Advection Time!
     // Move horizontal velocity (MAC left faces)
@@ -151,7 +220,9 @@ struct FluidState
     advect(densityOld, density, 0.0f, 0.0f, dt);
     setBoundary(0, density);
 
-    // 3. Next Up: Add diffuse() and project() physics steps here later...
+    // 3. Post advection projection
+    //Ensures the fluid stays incompressible after semi-Lagrangian advection
+    project();
 }
 
 };
