@@ -4,68 +4,88 @@
 #include "raylib.h"
 
 void drawFluid(const FluidState& state, int screenWidth, int screenHeight) {
-    //Determines the size of the individual cell, shouldn't need to be a float, but using for extra safety
     float cellSize = (float)screenHeight / state.height;
+    
     for (int j = 0; j < state.height; j++) {
         for (int i = 0; i < state.width; i++) {
             float d = state.density[state.getIndex(i, j)];
-            float scrX = (i) * cellSize;
-            float scrY = (j) * cellSize;
-            //Multiply the density value by 255 to get a color
+            
+            // Skip drawing completely dark cells to save GPU work
+            if (d <= 0.001f) continue;
+
+            float scrX = i * cellSize;
+            float scrY = j * cellSize;
+
             float scaledD = d * 255.0f;
-            //Clamp density value if above or below accepted values
-            if (scaledD < 0.0f) scaledD = 0.0f;
             if (scaledD > 255.0f) scaledD = 255.0f;
-            //Make it readable for RayLib
-            unsigned char (intensity) = (unsigned char) scaledD;
-            //Create the color
-            Color c = CLITERAL(Color){intensity, intensity, intensity, 255 };
-            //Draw the rectangles
+
+            unsigned char intensity = (unsigned char)scaledD;
+            Color c = CLITERAL(Color){ intensity, intensity, intensity, 255 };
+
             DrawRectangle(scrX, scrY, cellSize, cellSize, c);
-            //Draw the rectangle outlines
-            DrawRectangleLines(scrX, scrY, cellSize, cellSize, GRAY);
-        }  
+            // REMOVED DrawRectangleLines -- this was choking CPU/GPU performance!
+        }   
     }
-};
+}
 
-void handleGridInput (FluidState& state, int screenWidth, int screenHeight) {
-    // Update
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-         Vector2 mousePos = GetMousePosition();
-         Vector2 mouseDelta = GetMouseDelta();
-         //Determines the size of the individual cell, used in determining whether the mouse is actually inside the fluid grid or in the UI region
-         float cellSize = (float)screenHeight / state.height;
-    
-         int gridX = (int)(mousePos.x / cellSize);
-         int gridY = (int)(mousePos.y / cellSize);
-    
-        if (gridX >= 1 && gridX < state.width - 1 && gridY >= 1 && gridY < state.height - 1) {
-         int index = state.getIndex(gridX, gridY);
-         //Scalar calculations for input force
-         float scalarA = 20.0f / cellSize;
-         // Get the delta time (time elapsed since last frame)
-         float dt = GetFrameTime();
-         //Force x and y calculations based on mouseDeltas, scalarA, and deltaTime
-         //scalarA might need to be spilt up into an aX and aY in the future if the fluid grid is sensetive to the directions
-         float forceX = mouseDelta.x * scalarA * dt;
-         float forceY = mouseDelta.y * scalarA * dt;
-         // Add to the current density instead of overwriting it
-         // Adjust the multiplier (e.g., 5.0f) to make it fill faster or slower
-          state.density[index] += 5.0f * dt; 
-                
-         // Keep it capped at 1.0f max so it doesn't break the color math later
-         if (state.density[index] > 1.0f) {
-             state.density[index] = 1.0f;
-         }
-         //   Velocity Calculations! (yay!)
+void handleGridInput(FluidState& state, int screenWidth, int screenHeight) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        Vector2 mousePos = GetMousePosition();
+        Vector2 mouseDelta = GetMouseDelta();
 
-         //The horizontal velocity (hv) get applied to the current cell face and the right cell face
-         state.hv[index] += forceX;
-         state.hv[state.getIndex(gridX + 1, gridY)] += forceX;
+        float cellSize = (float)screenHeight / state.height;
 
-         //The vertical velocity (vv) get applied to the current cell face and the bottom cell face
-         state.vv[index] += forceY;
-         state.vv[state.getIndex(gridX, gridY + 1)] += forceY;
-         }
-      }
-   };
+        // Convert mouse position to floating-point grid coordinates
+        float gridX = mousePos.x / cellSize;
+        float gridY = mousePos.y / cellSize;
+
+        // Define brush radius in GRID CELLS (e.g., 3.5 cells wide)
+        float radius = 3.5f; 
+        float radiusSq = radius * radius;
+
+        // Determine bounding box around the brush to avoid checking the whole grid
+        int minX = std::max(1, (int)(gridX - radius));
+        int maxX = std::min(state.width - 2, (int)(gridX + radius));
+        int minY = std::max(1, (int)(gridY - radius));
+        int maxY = std::min(state.height - 2, (int)(gridY + radius));
+
+        // Base force scalar from mouse movement
+        float forceScalar = 1.5f;
+        float baseForceX = mouseDelta.x * forceScalar;
+        float baseForceY = mouseDelta.y * forceScalar;
+
+        for (int j = minY; j <= maxY; ++j) {
+            for (int i = minX; i <= maxX; ++i) {
+                // Calculate squared distance from cell center to mouse position
+                float dx = (i + 0.5f) - gridX;
+                float dy = (j + 0.5f) - gridY;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq <= radiusSq) {
+                    // Smooth falloff factor: 1.0 at center, 0.0 at edge
+                    float falloff = 1.0f - (distSq / radiusSq);
+                    
+                    int index = state.getIndex(i, j);
+
+                    // 1. Add smooth density
+                    state.density[index] += 0.8f * falloff;
+                    if (state.density[index] > 1.0f) {
+                        state.density[index] = 1.0f;
+                    }
+
+                    // 2. Add smooth force to velocity faces
+                    float cellForceX = baseForceX * falloff;
+                    float cellForceY = baseForceY * falloff;
+
+                    // Left face & right face
+                    state.hv[index] += cellForceX;
+                    state.hv[state.getIndex(i + 1, j)] += cellForceX;
+
+                    // Top face & bottom face
+                    state.vv[index] += cellForceY;
+                    state.vv[state.getIndex(i, j + 1)] += cellForceY;
+                }
+            }
+        }
+    }
+}
