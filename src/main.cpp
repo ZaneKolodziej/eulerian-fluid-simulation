@@ -1,6 +1,7 @@
 #include "raylib.h"
 #include "fluidSolver.hpp"
 #include "fluidGrid.hpp"
+#include "fluidUI.hpp"
 
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -12,8 +13,11 @@ int main(void)
     const int screenWidth = 1280;
     const int screenHeight = 720;
 
-    // Initialize the FluidGrid (64x64)
+    // Initialize the FluidGrid (128x128)
     FluidState state(128, 128);
+
+    // Initialize UI diagnostic state (holds heatmap toggle and error readings)
+    UIDiagnostics ui;
 
     InitWindow(screenWidth, screenHeight, "Eulerian Fluid Simulation");
 
@@ -27,19 +31,31 @@ int main(void)
         float dt = GetFrameTime();
 
         //----------------------------------------------------------------------------------
-        // TODO: Add mouse forces / user input here before updating the physics
+        // Input Handling
         //----------------------------------------------------------------------------------
+        // Toggle Divergence Heatmap with TAB key
+        if (IsKeyPressed(KEY_TAB)) {
+            ui.showDivergenceHeatmap = !ui.showDivergenceHeatmap;
+        }
+
+        // Add mouse forces & density
         handleGridInput(state, screenWidth, screenHeight);
-        // TODO: Call the master step function here (e.g., state.step(dt);)
+
+        // Physics Update Step
         state.step(dt);
+
         // Draw
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
             ClearBackground(BLACK);
             
-            // Render the fluid grid scaled to the screen size
-            drawFluid(state, screenWidth, screenHeight);
+            // 1. Render the fluid grid (passes ui state for density vs heatmap mode)
+            drawFluid(state, screenWidth, screenHeight, ui);
+
+            // 2. Draw diagnostics panel on the unused right sidebar space
+            int sidebarX = screenHeight + 20; 
+            drawSidebarUI(state, ui, sidebarX);
 
         EndDrawing();
         //----------------------------------------------------------------------------------
