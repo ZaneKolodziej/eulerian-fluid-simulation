@@ -1,0 +1,64 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) readonly uniform image2D inputGrid;
+layout(binding = 1, rgba32f) writeonly uniform image2D outputGrid;
+
+uniform float dt;
+
+void main() {
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    vec2 texSize = vec2(imageSize(inputGrid));
+    //Check coordinate bounds
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) {
+        return;
+    }
+    //Texel center alignment
+    vec2 pos = vec2(pixelCoordinate) + vec2(0.5);
+
+    //---RK2 first step, half position and velocity---
+    vec2 velocity1 = imageLoad(inputGrid, pixelCoordinate).rg;
+    vec2 halfPos = pos - 0.5 * dt * velocity1;
+    
+    //Bilinear interpolation components
+    vec2 uvHalf = clamp(halfPos, vec2(0.5), texSize - vec2(0.5));
+    vec2 iHalf = floor(uvHalf - 0.5);
+    vec2 fHalf = fract(uvHalf - 0.5);
+
+    //Clamp to prevent errors and out of bounds issues
+    ivec2 h00 = clamp(ivec2(iHalf), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 h10 = clamp(h00 + ivec2(1, 0), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 h01 = clamp(h00 + ivec2(0, 1), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 h11 = clamp(h00 + ivec2(1, 1), ivec2(0), ivec2(texSize) - ivec2(1));
+
+    //Bilinear interpolation again (GLSL mix function)
+    vec2 velocity2 = mix(
+     mix(imageLoad(inputGrid, h00).rg, imageLoad(inputGrid, h10).rg, fHalf.x),
+     mix(imageLoad(inputGrid, h01).rg, imageLoad(inputGrid, h11).rg, fHalf.x),
+     fHalf.y
+    );
+
+    //---RK2 second step, full backtrace---
+    vec2 oldPos = pos - dt * velocity2;
+
+    //Bilinear interpolation components
+    vec2 uvOld = clamp(oldPos, vec2(0.5), texSize - vec2(0.5));
+    vec2 iOld = floor(uvOld - 0.5);
+    vec2 fOld = fract(uvOld - 0.5);
+
+    //clamping
+    ivec2 o00 = clamp(ivec2(iOld), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 o10 = clamp(o00 + ivec2(1, 0), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 o01 = clamp(o00 + ivec2(0, 1), ivec2(0), ivec2(texSize) - ivec2(1));
+    ivec2 o11 = clamp(o00 + ivec2(1, 1), ivec2(0), ivec2(texSize) - ivec2(1));
+
+    //mixing!
+    vec2 advectedVel = mix(
+        mix(imageLoad(inputGrid, o00).rg, imageLoad(inputGrid, o10).rg, fOld.x),
+        mix(imageLoad(inputGrid, o01).rg, imageLoad(inputGrid, o11).rg, fOld.x),
+        fOld.y
+    ); 
+    //Store advected velocity in .rg
+    imageStore(outputGrid, pixelCoordinate, vec4(advectedVel, 0.0, 0.0));
+}

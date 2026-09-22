@@ -1,0 +1,47 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) readonly uniform image2D inputGrid;
+layout(binding = 1, rgba32f) writeonly uniform image2D outputGrid;
+
+uniform vec2 point; //Normalized mouse position relative to the window coordinates
+uniform vec2 force; //Velocity force (.rg channels) or Dye (.rg red and green)
+uniform float dyeAmount; //0.0 for velocity or dye (.b blue)
+uniform float radius; //Splat radius
+uniform float dt; //DeltaTime
+uniform int splatMode; //Should help with discerning between velocity and dye passes  (0 for a dye pass, 1 for velocity)
+
+void main() {
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(inputGrid);
+
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return; 
+
+    vec2 uv = (vec2(pixelCoordinate) + 0.5) / vec2(texSize);
+
+    vec2 diff = uv - point;
+    float aspectRatio = float(texSize.x) / float(texSize.y);
+    diff.x *= aspectRatio;
+
+    float distSq = dot(diff, diff);
+
+    //Gaussian falloff, closer to the center is more force, further away is less
+    float splat = exp(-distSq / radius);
+
+    vec4 currentData = imageLoad (inputGrid, pixelCoordinate);
+
+    //Add that color in
+    vec4 addedVal = vec4(force.x * splat, force.y * splat, dyeAmount * splat, 0.0);
+    vec4 finalColor = currentData + addedVal;
+
+    //Ensure the opacity sits at 1.0 so it's still visible
+    finalColor.a = 1.0;
+    
+    //Clamp to prevent blowouts
+    if (splatMode == 0) {
+    finalColor = clamp(vec4(finalColor), 0.0, 1.0); }
+
+
+    imageStore(outputGrid, pixelCoordinate, finalColor);
+}

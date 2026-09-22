@@ -1,0 +1,45 @@
+
+#version 430 core
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) readonly uniform image2D velocityGrid;
+layout(binding = 1, rgba32f) readonly uniform image2D dyeInputGrid;
+layout(binding = 2, rgba32f) writeonly uniform image2D dyeOutputGrid;
+
+uniform float dt;
+
+void main() {
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(dyeInputGrid);
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return;
+
+    // Find velocity in terms of pixel units
+    vec2 velocity = imageLoad(velocityGrid, pixelCoordinate).rg;
+
+    //Backwards trace
+    vec2 coordinate = vec2(pixelCoordinate) + vec2(0.5) - dt * velocity;
+    
+    vec2 uvCoordinate = clamp(coordinate, vec2(0.5), vec2(texSize) - vec2(0.5));
+    vec2 iOld = floor(uvCoordinate - 0.5);
+    vec2 fOld = fract(uvCoordinate - 0.5);
+
+    ivec2 i00 = clamp(ivec2(iOld), ivec2(0), texSize - 1);
+    ivec2 i10 = clamp(i00 + ivec2(1, 0), ivec2(0), texSize - 1);
+    ivec2 i01 = clamp(i00 + ivec2(0, 1), ivec2(0), texSize - 1);
+    ivec2 i11 = clamp(i00 + ivec2(1, 1), ivec2(0), texSize - 1);
+
+    vec4 d00 = imageLoad(dyeInputGrid, i00);
+    vec4 d10 = imageLoad(dyeInputGrid, i10);
+    vec4 d01 = imageLoad(dyeInputGrid, i01);
+    vec4 d11 = imageLoad(dyeInputGrid, i11);
+
+    // Bilinear interpolation of the advected dye
+    vec4 advectedDye = mix(mix(d00, d10, fOld.x), mix(d01, d11, fOld.x), fOld.y);
+
+    //Clamp the final value to prevent overblowing
+    advectedDye = clamp(vec4(advectedDye), 0.0, 1.0);
+
+    // Write out final stable result
+    imageStore(dyeOutputGrid, pixelCoordinate, advectedDye);
+}

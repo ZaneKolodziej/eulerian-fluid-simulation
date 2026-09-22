@@ -1,0 +1,59 @@
+#version 430 core
+
+// 1. Define the local workgroup block size (16x16 threads per workgroup)
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// Declare a read-only input texture bound to slot 0
+layout(binding = 0, rgba32f) readonly uniform image2D inputGrid;
+
+// Declare a write-only output texture bound to slot 1
+layout(binding = 1, rgba32f) writeonly uniform image2D outputGrid;
+
+uniform int simWidth;
+uniform float dt;
+
+void main() {
+    // Retrieve the 2D coordinates for this specific thread
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(inputGrid);
+
+    // Boundary conditions
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return;
+
+    // Neighbor coordinates with clamping
+    ivec2 L = ivec2(max(pixelCoordinate.x - 1, 0), pixelCoordinate.y);
+    ivec2 R = ivec2(min(pixelCoordinate.x + 1, texSize.x - 1), pixelCoordinate.y);
+    ivec2 B = ivec2(pixelCoordinate.x, max(pixelCoordinate.y - 1, 0));
+    ivec2 T = ivec2(pixelCoordinate.x, min(pixelCoordinate.y + 1, texSize.y - 1));
+
+    // Read neighboring pressures from Alpha channel
+    float pL = imageLoad(inputGrid, L).a;
+    float pR = imageLoad(inputGrid, R).a;
+    float pB = imageLoad(inputGrid, B).a;
+    float pT = imageLoad(inputGrid, T).a;
+
+    // Calculate pressure gradient: grad(P) = 0.5 * (pR - pL, pT - pB)
+    vec2 pressureGradient = 0.5 * vec2(pR - pL, pT - pB);
+
+    // Sample current cell data
+    vec4 currentData = imageLoad(inputGrid, pixelCoordinate);
+    vec2 vel = currentData.rg;
+
+    // Project velocity field: V_new = V_old - grad(P)
+    vel -= pressureGradient;
+
+    // Hard boundary check: No-slip / free-slip domain wall boundaries
+    if (pixelCoordinate.x == 0 || pixelCoordinate.x == texSize.x - 1 || pixelCoordinate.y == 0 || pixelCoordinate.y == texSize.y - 1) vel = vec2(0.0, 0.0);
+
+    float speed = length(vel);
+    float maxSpeed = 1.0 / dt;
+    float softSpeed;
+
+    if (speed > maxSpeed) {
+        softSpeed = maxSpeed * tanh(speed/maxSpeed);
+        vel = (vel / speed) * softSpeed;
+    }
+
+    // Write projected velocity back to RG, preserving divergence (B) and pressure (A)
+    imageStore(outputGrid, pixelCoordinate, vec4(vel, currentData.b, currentData.a));
+}

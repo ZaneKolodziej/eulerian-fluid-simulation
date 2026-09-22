@@ -1,0 +1,36 @@
+#version 430 core
+
+//Define workgroup block size
+layout (local_size_x = 16, local_size_y = 16) in;
+//Read only input texture
+layout(binding = 0, rgba32f) readonly uniform image2D inputGrid;
+//Write only output texture
+layout(binding = 1, rgba32f) writeonly uniform image2D outputGrid;
+
+void main() {
+    //Coordinates and texture size
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    vec2 texSize = vec2(imageSize(inputGrid));
+    //Check coordinate boundaries
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return;
+
+    //Find the neighbor coordinates and clamp values
+    ivec2 L = ivec2(max(pixelCoordinate.x - 1, 0), pixelCoordinate.y);
+    ivec2 R = ivec2(min(pixelCoordinate.x + 1, texSize.x - 1), pixelCoordinate.y);
+    ivec2 B = ivec2(pixelCoordinate.x, max(pixelCoordinate.y - 1, 0));
+    ivec2 T = ivec2(pixelCoordinate.x, min(pixelCoordinate.y + 1, texSize.y - 1));
+
+    //Sample the velocities (should be R and G channels)
+    float vL = (pixelCoordinate.x > 0) ? imageLoad(inputGrid, L).r : 0.0;
+    float vR = (pixelCoordinate.x < texSize.x - 1) ? imageLoad(inputGrid, R).r : 0.0;
+    float vB = (pixelCoordinate.y > 0) ? imageLoad(inputGrid, B).g : 0.0;
+    float vT = (pixelCoordinate.y < texSize.y - 1) ? imageLoad(inputGrid, T).g : 0.0;
+
+    //Divergence calculation
+    float Divergence = 0.5 * ((vR - vL) + (vT - vB));
+
+    // Sample all current data from inputGrid
+    vec4 currentData = imageLoad(inputGrid, pixelCoordinate);
+    //Store all new data and forwarding any non-used channels
+    imageStore(outputGrid, pixelCoordinate, vec4(currentData.rg, Divergence, currentData.a));
+}

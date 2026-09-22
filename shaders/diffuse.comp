@@ -1,0 +1,54 @@
+#version 430 core
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba32f) readonly uniform image2D inputGrid;
+layout(binding = 1, rgba32f) writeonly uniform image2D outputGrid;
+
+uniform float viscosity;
+uniform float dt;
+uniform int diffuseMode;
+
+void main() {
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(inputGrid);
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return;
+
+    ivec2 L = ivec2(max(pixelCoordinate.x - 1, 0), pixelCoordinate.y);
+    ivec2 R = ivec2(min(pixelCoordinate.x + 1, texSize.x - 1), pixelCoordinate.y);
+    ivec2 B = ivec2(pixelCoordinate.x, max(pixelCoordinate.y - 1, 0));
+    ivec2 T = ivec2(pixelCoordinate.x, min(pixelCoordinate.y + 1, texSize.y - 1));
+    //Velocity Mode
+    if (diffuseMode == 0) {
+    vec4 c  = imageLoad(inputGrid, pixelCoordinate);
+    vec2 vC = c.rg;
+    vec2 vL = imageLoad(inputGrid, L).rg;
+    vec2 vR = imageLoad(inputGrid, R).rg;
+    vec2 vB = imageLoad(inputGrid, B).rg;
+    vec2 vT = imageLoad(inputGrid, T).rg;
+
+    // dx = 1 (texel-index space), matching divergence.comp/jacobi.comp/projection.comp
+    vec2 laplacian = (vL + vR + vB + vT - 4.0 * vC);
+
+    vec2 newVel = vC + viscosity * dt * laplacian;
+
+    imageStore(outputGrid, pixelCoordinate, vec4(newVel, c.b, c.a)); 
+    }
+
+    //Dye mode
+    else if (diffuseMode == 1) {
+    vec4 c = imageLoad(inputGrid, pixelCoordinate);
+    vec3 vC = c.rgb;
+    vec3 vL = imageLoad(inputGrid, L).rgb;
+    vec3 vR = imageLoad(inputGrid, R).rgb;
+    vec3 vB = imageLoad(inputGrid, B).rgb;
+    vec3 vT = imageLoad(inputGrid, T).rgb;
+
+    // dx = 1 (texel-index space), matching divergence.comp/jacobi.comp/projection.comp
+    vec3 laplacian = (vL + vR + vB + vT - 4.0 * vC);
+
+    vec3 newVel = vC + viscosity * dt * laplacian;
+
+    imageStore(outputGrid, pixelCoordinate, vec4(newVel, c.a));
+    }
+}

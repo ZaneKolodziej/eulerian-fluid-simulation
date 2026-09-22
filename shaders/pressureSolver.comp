@@ -1,0 +1,53 @@
+#version 430 core
+
+// 1. Define the local workgroup block size (16x16 threads per workgroup)
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// Declare a read-only input texture bound to slot 0
+layout(binding = 0, rgba32f) readonly uniform image2D divergenceGrid;
+
+// Declare a write-only output texture bound to slot 1
+layout(binding = 1, rgba32f) uniform image2D pressureGrid;
+
+uniform int isBlackPass; //0 for red cells, 1 for black cells
+uniform float omega; //1.5 ish for over-relaxation
+
+void main() {
+    // Retrieve the 2D coordinates for this specific thread
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = imageSize(pressureGrid);
+
+    // Boundary conditions
+    if (pixelCoordinate.x >= texSize.x || pixelCoordinate.y >= texSize.y) return;
+    // Skip fixed boundary layer (1 pixel padding)
+    if (pixelCoordinate.x == 0 || pixelCoordinate.x == texSize.x - 1 || pixelCoordinate.y == 0 || pixelCoordinate.y == texSize.y - 1) return;
+    //checkerboard parity check
+    int parity = (pixelCoordinate.y + pixelCoordinate.x) % 2;
+    if (parity != isBlackPass) return;
+
+    // Neighbor coordinates 
+    ivec2 L = ivec2(pixelCoordinate.x - 1, pixelCoordinate.y);
+    ivec2 R = ivec2(pixelCoordinate.x + 1, pixelCoordinate.y);
+    ivec2 B = ivec2(pixelCoordinate.x, pixelCoordinate.y - 1);
+    ivec2 T = ivec2(pixelCoordinate.x, pixelCoordinate.y + 1);
+
+    // Read neighboring pressures from Alpha channel (.a)
+    float pL = imageLoad(pressureGrid, L).a;
+    float pR = imageLoad(pressureGrid, R).a;
+    float pB = imageLoad(pressureGrid, B).a;
+    float pT = imageLoad(pressureGrid, T).a;
+
+    vec4 currentData = imageLoad(pressureGrid, pixelCoordinate);
+    float currentPressure = currentData.a;
+    float div = imageLoad(divergenceGrid, pixelCoordinate).b;
+
+    //Ideal pressure calculation
+    float idealPressure = 0.25 * (pL + pR + pB + pT - div);
+    //Calculate new pressure with over-relaxation
+    float newPressure = currentPressure + omega * (idealPressure - currentPressure);
+
+    //write new pressure to current data
+    currentData.a = newPressure;
+    imageStore(pressureGrid, pixelCoordinate, currentData);
+
+}

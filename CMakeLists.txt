@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION  3.16)
-project(EulerianFluidSimulation_Iter2 CXX C) # dont know if the C is needed, this line was copied from the older reference file
+project(EulerianFluidSimulation_Iter2 CXX C) 
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,6 +12,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/external/ImGui
     ${CMAKE_CURRENT_SOURCE_DIR}/external/ImGui/backends
     ${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/glm/glm
 )
 
 #Gather the source files (whatever that means?)
@@ -39,7 +40,13 @@ set(SOURCES
 #Executable Target
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-#Compile Definitions & Linker Flages
+#Compile Definitions & Linker Flags
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+    IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+)
+target_compile_options(${PROJECT_NAME} PRIVATE 
+    -include${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include/glad/glad.h
+)
 
 #Link directly to required system libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
