@@ -1,0 +1,49 @@
+# ==========================================
+# CMake Build Directories & Generated Files
+# ==========================================
+build/
+bin/
+lib/
+out/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# ==========================================
+# Visual Studio Project & Cache Files
+# ==========================================
+.vs/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.dir/
+
+# ==========================================
+# Compiled Binaries & Intermediate Objects
+# ==========================================
+*.exe
+*.out
+*.app
+*.o
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.a
+*.so
+*.dylib
+
+# ==========================================
+# OS & Editor Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+*.swp
+*.user
